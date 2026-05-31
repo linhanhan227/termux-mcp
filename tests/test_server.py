@@ -68,6 +68,10 @@ class ServerTests(unittest.TestCase):
 
         self.assertIn("联网搜索", web_search.description)
         self.assertEqual(web_search.inputSchema["properties"]["query"]["title"], "搜索词")
+        self.assertEqual(
+            web_search.inputSchema["properties"]["provider"]["enum"],
+            ["auto", "tavily", "bing"],
+        )
         self.assertEqual(file_operation.inputSchema["properties"]["action"]["title"], "操作")
         self.assertIn("文件操作类型", file_operation.inputSchema["properties"]["action"]["description"])
         self.assertEqual(agent.inputSchema["properties"]["action"]["title"], "动作")

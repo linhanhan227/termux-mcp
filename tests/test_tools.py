@@ -15,9 +15,7 @@ from mcp_toolkit.tools.agent import register_agent_tool
 from mcp_toolkit.tools.files import register_file_operation_tool
 from mcp_toolkit.tools.web import (
     BING_SEARCH_URL,
-    DUCKDUCKGO_SEARCH_URLS,
     _parse_bing_results,
-    _parse_duckduckgo_results,
     register_web_search_tool,
 )
 
@@ -100,16 +98,6 @@ class ToolTests(unittest.TestCase):
         reset = agent("reset")
         self.assertEqual(reset["status"], "idle")
 
-    def test_duckduckgo_result_parser_normalizes_redirects(self) -> None:
-        body = """
-        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fa">Example &amp; A</a>
-        <a class="result__a" href="https://example.org/b">Example B</a>
-        """
-        results = _parse_duckduckgo_results(body, 10)
-        self.assertEqual(results[0]["title"], "Example & A")
-        self.assertEqual(results[0]["url"], "https://example.com/a")
-        self.assertEqual(results[1]["url"], "https://example.org/b")
-
     def test_bing_result_parser_extracts_results_and_decodes_redirects(self) -> None:
         body = """
         <ol id="b_results">
@@ -128,12 +116,41 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(results[0]["content"], "Snippet & details")
         self.assertEqual(results[1]["url"], "https://example.org/b")
 
-    def test_tavily_without_key_falls_back_to_duckduckgo(self) -> None:
-        body = '<a class="result__a" href="https://example.com/search">Example</a>'
+    def test_explicit_tavily_without_key_requires_key(self) -> None:
+        with TemporaryDirectory() as tmp:
+            registry = ToolRegistry()
+            register_web_search_tool(registry, make_settings(Path(tmp)))
+            web_search = tool(registry, "web_search")
+
+            with self.assertRaises(ValueError) as caught:
+                asyncio.run(web_search("python mcp", provider="tavily"))
+
+        self.assertIn("TAVILY_API_KEY", str(caught.exception))
+
+    def test_removed_search_providers_are_rejected(self) -> None:
+        with TemporaryDirectory() as tmp:
+            registry = ToolRegistry()
+            register_web_search_tool(registry, make_settings(Path(tmp)))
+            web_search = tool(registry, "web_search")
+
+            with self.assertRaises(ValueError) as caught:
+                asyncio.run(web_search("python mcp", provider="legacy"))
+
+        self.assertIn("auto、tavily、bing", str(caught.exception))
+
+    def test_auto_without_tavily_key_uses_bing(self) -> None:
+        bing_body = """
+        <ol id="b_results">
+          <li class="b_algo">
+            <h2><a href="https://example.com/bing">Python MCP Bing Result</a></h2>
+            <div class="b_caption"><p>Bing snippet</p></div>
+          </li>
+        </ol>
+        """
         calls: list[tuple[str, dict[str, str]]] = []
 
         class FakeResponse:
-            text = body
+            text = bing_body
 
             def raise_for_status(self) -> None:
                 return None
@@ -161,22 +178,30 @@ class ToolTests(unittest.TestCase):
             web_search = tool(registry, "web_search")
 
             with patch("mcp_toolkit.tools.web.httpx.AsyncClient", FakeAsyncClient):
-                result = asyncio.run(web_search("python mcp", provider="tavily"))
+                result = asyncio.run(web_search("python mcp"))
 
-        self.assertEqual(result["provider"], "duckduckgo")
-        self.assertEqual(calls, [("https://duckduckgo.com/html/", {"q": "python mcp"})])
-        self.assertEqual(result["results"][0]["url"], "https://example.com/search")
+        self.assertEqual(result["provider"], "bing")
+        self.assertEqual(
+            calls,
+            [
+                (
+                    BING_SEARCH_URL,
+                    {"q": "python mcp", "mkt": "zh-CN", "cc": "CN", "setlang": "zh-Hans"},
+                ),
+            ],
+        )
+        self.assertEqual(result["results"][0]["url"], "https://example.com/bing")
 
-    def test_auto_falls_back_to_bing_when_duckduckgo_unreachable(self) -> None:
+    def test_auto_falls_back_to_bing_when_tavily_unreachable(self) -> None:
         bing_body = """
         <ol id="b_results">
           <li class="b_algo">
-            <h2><a href="https://example.com/bing">Bing Result</a></h2>
+            <h2><a href="https://example.com/bing">Python MCP Bing Result</a></h2>
             <div class="b_caption"><p>Bing snippet</p></div>
           </li>
         </ol>
         """
-        calls: list[tuple[str, dict[str, str]]] = []
+        calls: list[tuple[str, str]] = []
 
         class FakeResponse:
             text = bing_body
@@ -195,10 +220,72 @@ class ToolTests(unittest.TestCase):
                 return None
 
             async def get(self, url: str, *, params: dict[str, str], headers: dict[str, str]) -> FakeResponse:
-                calls.append((url, params))
-                if url in DUCKDUCKGO_SEARCH_URLS:
-                    raise httpx.ConnectError("All connection attempts failed")
+                calls.append(("get", url))
                 return FakeResponse()
+
+            async def post(self, url: str, **kwargs: object) -> None:
+                calls.append(("post", url))
+                raise httpx.ConnectError("Tavily unavailable")
+
+        with TemporaryDirectory() as tmp:
+            registry = ToolRegistry()
+            register_web_search_tool(registry, make_settings(Path(tmp), tavily_api_key="test-key"))
+            web_search = tool(registry, "web_search")
+
+            with patch("mcp_toolkit.tools.web.httpx.AsyncClient", FakeAsyncClient):
+                result = asyncio.run(web_search("python mcp"))
+
+        self.assertEqual(result["provider"], "bing")
+        self.assertEqual(calls, [("post", "https://api.tavily.com/search"), ("get", BING_SEARCH_URL)])
+        self.assertEqual(result["results"][0]["url"], "https://example.com/bing")
+
+    def test_bing_search_fetches_next_pages(self) -> None:
+        def page(start: int, next_href: str | None = None) -> str:
+            results = "\n".join(
+                f"""
+                <li class="b_algo">
+                  <h2><a href="https://example.com/{index}">Result {index}</a></h2>
+                  <div class="b_caption"><p>Snippet {index}</p></div>
+                </li>
+                """
+                for index in range(start, start + 10)
+            )
+            next_link = (
+                f'<a class="sb_pagN" aria-label="Next" href="{next_href}">Next</a>'
+                if next_href
+                else ""
+            )
+            return f'<ol id="b_results">{results}<li>{next_link}</li></ol>'
+
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        class FakeResponse:
+            def __init__(self, text: str) -> None:
+                self.text = text
+
+            def raise_for_status(self) -> None:
+                return None
+
+        class FakeAsyncClient:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                return None
+
+            async def __aenter__(self) -> "FakeAsyncClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def get(self, url: str, *, params: dict[str, str], headers: dict[str, str]) -> FakeResponse:
+                calls.append((url, dict(params)))
+                if params.get("first") == "11":
+                    return FakeResponse(page(10))
+                return FakeResponse(
+                    page(
+                        0,
+                        "/search?q=python+mcp&amp;count=10&amp;FPIG=abc&amp;first=11&amp;FORM=PORE",
+                    )
+                )
 
         with TemporaryDirectory() as tmp:
             registry = ToolRegistry()
@@ -206,11 +293,138 @@ class ToolTests(unittest.TestCase):
             web_search = tool(registry, "web_search")
 
             with patch("mcp_toolkit.tools.web.httpx.AsyncClient", FakeAsyncClient):
-                result = asyncio.run(web_search("python mcp"))
+                result = asyncio.run(web_search("python mcp", max_results=12, provider="bing"))
 
-        self.assertEqual(result["provider"], "bing")
-        self.assertEqual(calls[-1], (BING_SEARCH_URL, {"q": "python mcp"}))
-        self.assertEqual(result["results"][0]["url"], "https://example.com/bing")
+        self.assertEqual(
+            calls,
+            [
+                (
+                    BING_SEARCH_URL,
+                    {
+                        "q": "python mcp",
+                        "mkt": "zh-CN",
+                        "cc": "CN",
+                        "setlang": "zh-Hans",
+                        "count": "10",
+                    },
+                ),
+                (
+                    BING_SEARCH_URL,
+                    {
+                        "q": "python mcp",
+                        "count": "10",
+                        "FPIG": "abc",
+                        "first": "11",
+                        "FORM": "PORE",
+                        "mkt": "zh-CN",
+                        "cc": "CN",
+                        "setlang": "zh-Hans",
+                    },
+                ),
+            ],
+        )
+        self.assertEqual(len(result["results"]), 12)
+        self.assertEqual(result["results"][-1]["url"], "https://example.com/11")
+
+    def test_bing_search_continues_after_repeated_page(self) -> None:
+        def page(start: int, next_href: str | None = None) -> str:
+            results = "\n".join(
+                f"""
+                <li class="b_algo">
+                  <h2><a href="https://example.com/{index}">Result {index}</a></h2>
+                  <div class="b_caption"><p>Snippet {index}</p></div>
+                </li>
+                """
+                for index in range(start, start + 10)
+            )
+            next_link = (
+                f'<a class="sb_pagN" aria-label="Next" href="{next_href}">Next</a>'
+                if next_href
+                else ""
+            )
+            return f'<ol id="b_results">{results}<li>{next_link}</li></ol>'
+
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        class FakeResponse:
+            def __init__(self, text: str) -> None:
+                self.text = text
+
+            def raise_for_status(self) -> None:
+                return None
+
+        class FakeAsyncClient:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                return None
+
+            async def __aenter__(self) -> "FakeAsyncClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def get(self, url: str, *, params: dict[str, str], headers: dict[str, str]) -> FakeResponse:
+                calls.append((url, dict(params)))
+                if params.get("first") == "21":
+                    return FakeResponse(page(10))
+                if params.get("first") == "11":
+                    return FakeResponse(page(0))
+                return FakeResponse(
+                    page(
+                        0,
+                        "/search?q=python+mcp&amp;count=10&amp;FPIG=abc&amp;first=11&amp;FORM=PORE",
+                    )
+                )
+
+        with TemporaryDirectory() as tmp:
+            registry = ToolRegistry()
+            register_web_search_tool(registry, make_settings(Path(tmp)))
+            web_search = tool(registry, "web_search")
+
+            with patch("mcp_toolkit.tools.web.httpx.AsyncClient", FakeAsyncClient):
+                result = asyncio.run(web_search("python mcp", max_results=12, provider="bing"))
+
+        self.assertEqual(
+            calls,
+            [
+                (
+                    BING_SEARCH_URL,
+                    {
+                        "q": "python mcp",
+                        "mkt": "zh-CN",
+                        "cc": "CN",
+                        "setlang": "zh-Hans",
+                        "count": "10",
+                    },
+                ),
+                (
+                    BING_SEARCH_URL,
+                    {
+                        "q": "python mcp",
+                        "count": "10",
+                        "FPIG": "abc",
+                        "first": "11",
+                        "FORM": "PORE",
+                        "mkt": "zh-CN",
+                        "cc": "CN",
+                        "setlang": "zh-Hans",
+                    },
+                ),
+                (
+                    BING_SEARCH_URL,
+                    {
+                        "q": "python mcp",
+                        "mkt": "zh-CN",
+                        "cc": "CN",
+                        "setlang": "zh-Hans",
+                        "count": "10",
+                        "first": "21",
+                    },
+                ),
+            ],
+        )
+        self.assertEqual(len(result["results"]), 12)
+        self.assertEqual(result["results"][-1]["url"], "https://example.com/11")
 
 
 if __name__ == "__main__":

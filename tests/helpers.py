@@ -15,6 +15,7 @@ def make_settings(
     auth_header: str = "X-MCP-Auth-Token",
     allow_write: bool = False,
     stateless_http: bool = True,
+    tavily_api_key: str | None = None,
 ) -> Settings:
     return Settings(
         server_name="test-mcp",
@@ -22,7 +23,7 @@ def make_settings(
         host=host,
         port=port,
         workspace=workspace.resolve(),
-        tavily_api_key=None,
+        tavily_api_key=tavily_api_key,
         tavily_api_url="https://api.tavily.com/search",
         auth_token=auth_token,
         auth_header=auth_header,

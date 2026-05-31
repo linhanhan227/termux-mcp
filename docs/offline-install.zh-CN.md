@@ -198,7 +198,7 @@ chmod +x termux-install.sh
 | `MCP_AUTH_TOKEN` | 空 | 否 | HTTP/SSE 请求头授权码。为空时不启用请求头鉴权。 |
 | `MCP_AUTH_HEADER` | `X-MCP-Auth-Token` | 设置 token 时必填 | 读取授权码的请求头名。 |
 | `MCP_ALLOW_WRITE` | `false` | 是 | 是否允许文件写入、替换、复制、移动和删除。 |
-| `TAVILY_API_KEY` | 空 | 否 | Tavily API Key。为空时 `web_search` 使用 DuckDuckGo HTML 搜索；DuckDuckGo 不可用时回退到 Bing。 |
+| `TAVILY_API_KEY` | 空 | 否 | Tavily API Key。为空时 `provider=auto` 使用 Bing；显式 `provider=tavily` 需要设置。 |
 | `MCP_TOOLKIT_PLUGINS` | 空 | 否 | 逗号分隔的插件模块列表。 |
 
 密钥类输入不会在终端回显。已有值时直接回车会保留原值；输入 `-` 会清空可选值。
