@@ -16,30 +16,30 @@ TAG_NAME=
 
 usage() {
   cat <<EOF
-Usage:
-  ./$SCRIPT_NAME -m "commit message" [options]
+用法：
+  ./$SCRIPT_NAME -m "提交说明" [选项]
 
-Options:
-  -m, --message MSG        Commit message. If omitted, a timestamp message is used.
-  -b, --branch NAME        Branch to push. Defaults to current branch, or main.
-  -r, --remote NAME        Git remote name. Defaults to origin.
-  -u, --remote-url URL     Add or update the remote URL before pushing.
-      --tag NAME           Create or update an annotated tag after commit.
-      --push-tags          Push all local tags.
-      --allow-empty        Allow an empty commit when there are no file changes.
-      --no-verify          Pass --no-verify to git commit.
-      --force-with-lease   Push with --force-with-lease.
-      --dry-run            Print commands instead of running them.
-  -h, --help               Show this help.
+选项：
+  -m, --message MSG        提交说明。未填写时使用带时间的默认说明。
+  -b, --branch NAME        要推送的分支。默认使用当前分支，没有当前分支时使用 main。
+  -r, --remote NAME        Git 远程名称。默认是 origin。
+  -u, --remote-url URL     推送前添加或更新远程仓库地址。
+      --tag NAME           提交后创建或更新一个附注标签。
+      --push-tags          推送所有本地标签。
+      --allow-empty        没有文件变更时也允许创建空提交。
+      --no-verify          提交时跳过 Git hooks 检查。
+      --force-with-lease   使用 --force-with-lease 推送。
+      --dry-run            只打印将要执行的命令，不实际执行。
+  -h, --help               显示帮助。
 
-Environment:
-  GITHUB_REPO_URL          Used as remote URL if -u/--remote-url is not given.
-  GIT_COMMIT_MESSAGE       Used as commit message if -m/--message is not given.
+环境变量：
+  GITHUB_REPO_URL          未传入 -u/--remote-url 时用作远程仓库地址。
+  GIT_COMMIT_MESSAGE       未传入 -m/--message 时用作提交说明。
 
-Examples:
-  ./$SCRIPT_NAME -m "Initial commit" -u git@github.com:USER/REPO.git
-  ./$SCRIPT_NAME -m "Update docs"
-  GITHUB_REPO_URL=https://github.com/USER/REPO.git ./$SCRIPT_NAME -m "Publish"
+示例：
+  ./$SCRIPT_NAME -m "初始化提交" -u git@github.com:USER/REPO.git
+  ./$SCRIPT_NAME -m "更新文档"
+  GITHUB_REPO_URL=https://github.com/USER/REPO.git ./$SCRIPT_NAME -m "发布更新"
 EOF
 }
 
@@ -48,7 +48,7 @@ log() {
 }
 
 die() {
-  printf 'Error: %s\n' "$*" >&2
+  printf '错误：%s\n' "$*" >&2
   exit 1
 }
 
@@ -79,7 +79,7 @@ parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
       -m|--message)
-        [ "$#" -ge 2 ] || die "$1 requires a value"
+        [ "$#" -ge 2 ] || die "$1 需要一个值"
         COMMIT_MSG=$2
         shift 2
         ;;
@@ -88,7 +88,7 @@ parse_args() {
         shift
         ;;
       -b|--branch)
-        [ "$#" -ge 2 ] || die "$1 requires a value"
+        [ "$#" -ge 2 ] || die "$1 需要一个值"
         BRANCH=$2
         shift 2
         ;;
@@ -97,7 +97,7 @@ parse_args() {
         shift
         ;;
       -r|--remote)
-        [ "$#" -ge 2 ] || die "$1 requires a value"
+        [ "$#" -ge 2 ] || die "$1 需要一个值"
         REMOTE_NAME=$2
         shift 2
         ;;
@@ -106,7 +106,7 @@ parse_args() {
         shift
         ;;
       -u|--remote-url)
-        [ "$#" -ge 2 ] || die "$1 requires a value"
+        [ "$#" -ge 2 ] || die "$1 需要一个值"
         REMOTE_URL=$2
         shift 2
         ;;
@@ -115,7 +115,7 @@ parse_args() {
         shift
         ;;
       --tag)
-        [ "$#" -ge 2 ] || die "$1 requires a value"
+        [ "$#" -ge 2 ] || die "$1 需要一个值"
         TAG_NAME=$2
         shift 2
         ;;
@@ -152,10 +152,10 @@ parse_args() {
         break
         ;;
       -*)
-        die "unknown option: $1"
+        die "未知选项：$1"
         ;;
       *)
-        die "unexpected argument: $1"
+        die "不支持的位置参数：$1"
         ;;
     esac
   done
@@ -166,7 +166,7 @@ ensure_git_repo() {
     return
   fi
 
-  log "No git repository found. Initializing one in the current directory."
+  log "未发现 Git 仓库，正在当前目录初始化。"
   run git init
 }
 
@@ -174,8 +174,8 @@ ensure_identity() {
   name=$(git config user.name || true)
   email=$(git config user.email || true)
 
-  [ -n "$name" ] || die "git user.name is not set. Run: git config --global user.name \"Your Name\""
-  [ -n "$email" ] || die "git user.email is not set. Run: git config --global user.email \"you@example.com\""
+  [ -n "$name" ] || die "未设置 git user.name。请执行：git config --global user.name \"你的名字\""
+  [ -n "$email" ] || die "未设置 git user.email。请执行：git config --global user.email \"you@example.com\""
 }
 
 resolve_branch() {
@@ -221,7 +221,7 @@ ensure_remote() {
     return
   fi
 
-  [ -n "$REMOTE_URL" ] || die "remote '$REMOTE_NAME' does not exist. Provide -u URL or set GITHUB_REPO_URL."
+  [ -n "$REMOTE_URL" ] || die "远程 '$REMOTE_NAME' 不存在。请传入 -u URL，或设置 GITHUB_REPO_URL。"
   run git remote add "$REMOTE_NAME" "$REMOTE_URL"
 }
 
@@ -233,7 +233,7 @@ default_commit_message() {
   if [ -n "${GIT_COMMIT_MESSAGE:-}" ]; then
     COMMIT_MSG=$GIT_COMMIT_MESSAGE
   else
-    COMMIT_MSG="Update repository $(date '+%Y-%m-%d %H:%M:%S')"
+    COMMIT_MSG="更新仓库 $(date '+%Y-%m-%d %H:%M:%S')"
   fi
 }
 
@@ -269,8 +269,8 @@ $paths
 EOF
 
   if [ -n "$blocked" ]; then
-    printf 'Refusing to commit possible secret files:\n%s\n' "$blocked" >&2
-    die "remove these files from staging or update .gitignore before committing"
+    printf '拒绝提交可能包含敏感信息的文件：\n%s\n' "$blocked" >&2
+    die "请先从暂存区移除这些文件，或在提交前更新 .gitignore"
   fi
 }
 
@@ -322,7 +322,7 @@ push_changes() {
 main() {
   parse_args "$@"
 
-  have_cmd git || die "git is not installed"
+  have_cmd git || die "未安装 git"
 
   ensure_git_repo
   ensure_identity
@@ -337,11 +337,11 @@ main() {
     commit_changes
     create_tag
   else
-    log "No changes to commit."
+    log "没有需要提交的变更。"
   fi
 
   push_changes
-  log "Done. Pushed '$BRANCH' to '$REMOTE_NAME'."
+  log "完成。已将分支 '$BRANCH' 推送到远程 '$REMOTE_NAME'。"
 }
 
 main "$@"

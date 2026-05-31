@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- `web_search` 联网搜索：有 `TAVILY_API_KEY` 时使用 Tavily，否则使用 DuckDuckGo HTML 搜索
+- `web_search` 联网搜索：有 `TAVILY_API_KEY` 时使用 Tavily，否则使用 DuckDuckGo HTML 搜索；DuckDuckGo 不可用时自动回退到 Bing
 - `file_operation` 文件操作：在一个工具内完成列表、读取、查找、grep、写入、替换、复制、移动和删除
 - `agent` 轻量任务状态工具：记录任务目标、步骤、进展和完成结果
 - 插件式工具扩展，支持按模块加载自定义工具
@@ -64,7 +64,7 @@ cd mcp-toolkit-server-offline-pip
 
 ## 配置
 
-不要把真实 API Key 写入源码。启动前通过环境变量配置工作区；`TAVILY_API_KEY` 可选，未设置时 `web_search` 会使用 DuckDuckGo HTML 搜索：
+不要把真实 API Key 写入源码。启动前通过环境变量配置工作区；`TAVILY_API_KEY` 可选，未设置时 `web_search` 会使用 DuckDuckGo HTML 搜索，并在 DuckDuckGo 不可用时回退到 Bing：
 
 ```sh
 export TAVILY_API_KEY='your-tavily-key'
@@ -94,7 +94,7 @@ export MCP_TOOLKIT_PLUGINS=examples.custom_tools
 
 | 变量名 | 默认值 | 说明 |
 | --- | --- | --- |
-| `TAVILY_API_KEY` | 空 | Tavily API Key。为空时 `web_search` 使用 DuckDuckGo HTML 搜索。 |
+| `TAVILY_API_KEY` | 空 | Tavily API Key。为空时 `web_search` 使用 DuckDuckGo HTML 搜索；DuckDuckGo 不可用时回退到 Bing。 |
 | `TAVILY_API_URL` | `https://api.tavily.com/search` | Tavily 搜索接口地址。 |
 | `MCP_ENV_FILE` | `.env` | 启动时自动读取的环境变量文件。设为空可禁用自动加载。 |
 | `MCP_TRANSPORT` | `stdio` | MCP 传输方式：`stdio`、`sse` 或 `streamable-http`。 |
@@ -227,7 +227,7 @@ http://服务器IP:8000/healthz
 
 | 工具名 | 说明 |
 | --- | --- |
-| `web_search` | 联网搜索公开网页，优先使用 Tavily，未配置 Key 时使用 DuckDuckGo HTML 搜索。 |
+| `web_search` | 联网搜索公开网页，优先使用 Tavily，未配置 Key 时使用 DuckDuckGo HTML 搜索；DuckDuckGo 不可用时回退到 Bing。 |
 | `file_operation` | 在 `MCP_WORKSPACE` 内执行文件操作；写入、替换、复制、移动、删除需要 `MCP_ALLOW_WRITE=true`。 |
 | `agent` | 管理轻量 agent 任务状态，记录目标、步骤、进展和完成结果。 |
 
