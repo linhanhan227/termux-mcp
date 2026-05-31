@@ -15,10 +15,8 @@
 
 ## 文档
 
-- [项目说明](docs/project-description.zh-CN.md)
 - [详细使用与扩展手册](docs/user-guide.zh-CN.md)
 - [离线版构建与安装](docs/offline-install.zh-CN.md)
-- [工具开发说明](docs/tool-development.md)
 
 ## 安装
 
