@@ -320,3 +320,7 @@ PY
 - `file_operation` 只能访问 `MCP_WORKSPACE` 内路径。
 - 文件写入、替换、复制、移动和删除能力默认关闭，需要显式设置 `MCP_ALLOW_WRITE=true`。
 - 建议为不同项目配置不同的 `MCP_WORKSPACE`。
+
+## 授权协议
+
+本项目基于 GNU General Public License v3.0 or later（`GPL-3.0-or-later`）授权发布，详见 [LICENSE](LICENSE)。

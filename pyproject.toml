@@ -7,7 +7,11 @@ name = "mcp-toolkit-server"
 version = "0.1.0"
 description = "An extensible Python MCP server with web search, file operation, and agent tools."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
+classifiers = [
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
 dependencies = [
   "httpx>=0.27",
   "mcp>=1.9.0",
