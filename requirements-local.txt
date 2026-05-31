@@ -1,0 +1,4 @@
+--no-index
+--find-links ./wheelhouse
+mcp-toolkit-server==0.1.0
+

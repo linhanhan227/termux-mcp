@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.termux-mcp.env
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+*.egg-info/
