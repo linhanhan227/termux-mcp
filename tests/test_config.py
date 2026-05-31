@@ -62,6 +62,12 @@ class SettingsTests(unittest.TestCase):
 
         self.assertEqual(settings.auth_token, "from-env")
 
+    def test_blank_tavily_api_key_is_treated_as_missing(self) -> None:
+        with patch.dict(os.environ, {"MCP_ENV_FILE": "", "TAVILY_API_KEY": "   "}, clear=True):
+            settings = Settings.from_env()
+
+        self.assertIsNone(settings.tavily_api_key)
+
     def test_rejects_invalid_transport(self) -> None:
         with patch.dict(os.environ, {"MCP_ENV_FILE": "", "MCP_TRANSPORT": "bad"}, clear=True):
             with self.assertRaises(ValueError):

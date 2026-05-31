@@ -116,7 +116,7 @@ class Settings:
             host=os.getenv("MCP_HOST", "127.0.0.1"),
             port=_env_int("MCP_PORT", 8000),
             workspace=workspace,
-            tavily_api_key=os.getenv("TAVILY_API_KEY"),
+            tavily_api_key=_env_optional_str("TAVILY_API_KEY"),
             tavily_api_url=os.getenv("TAVILY_API_URL", "https://api.tavily.com/search"),
             auth_token=_env_optional_str("MCP_AUTH_TOKEN"),
             auth_header=_env_header_name("MCP_AUTH_HEADER", "X-MCP-Auth-Token"),

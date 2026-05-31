@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from mcp_toolkit.core.registry import ToolRegistry
 from mcp_toolkit.core.security import resolve_workspace_path
 from mcp_toolkit.tools.agent import register_agent_tool
 from mcp_toolkit.tools.files import register_file_operation_tool
-from mcp_toolkit.tools.web import _parse_duckduckgo_results
+from mcp_toolkit.tools.web import _parse_duckduckgo_results, register_web_search_tool
 
 from tests.helpers import make_settings
 
@@ -99,6 +101,45 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(results[0]["title"], "Example & A")
         self.assertEqual(results[0]["url"], "https://example.com/a")
         self.assertEqual(results[1]["url"], "https://example.org/b")
+
+    def test_tavily_without_key_falls_back_to_duckduckgo(self) -> None:
+        body = '<a class="result__a" href="https://example.com/search">Example</a>'
+        calls: list[tuple[str, dict[str, str]]] = []
+
+        class FakeResponse:
+            text = body
+
+            def raise_for_status(self) -> None:
+                return None
+
+        class FakeAsyncClient:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                return None
+
+            async def __aenter__(self) -> "FakeAsyncClient":
+                return self
+
+            async def __aexit__(self, *args: object) -> None:
+                return None
+
+            async def get(self, url: str, *, params: dict[str, str], headers: dict[str, str]) -> FakeResponse:
+                calls.append((url, params))
+                return FakeResponse()
+
+            async def post(self, *args: object, **kwargs: object) -> None:
+                raise AssertionError("Tavily should not be called without an API key")
+
+        with TemporaryDirectory() as tmp:
+            registry = ToolRegistry()
+            register_web_search_tool(registry, make_settings(Path(tmp)))
+            web_search = tool(registry, "web_search")
+
+            with patch("mcp_toolkit.tools.web.httpx.AsyncClient", FakeAsyncClient):
+                result = asyncio.run(web_search("python mcp", provider="tavily"))
+
+        self.assertEqual(result["provider"], "duckduckgo")
+        self.assertEqual(calls, [("https://duckduckgo.com/html/", {"q": "python mcp"})])
+        self.assertEqual(result["results"][0]["url"], "https://example.com/search")
 
 
 if __name__ == "__main__":

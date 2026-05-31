@@ -278,15 +278,15 @@ export MCP_TOOLKIT_PLUGINS=examples.custom_tools,examples.math_tools
 
 正常。当前内置工具只保留 `web_search`、`file_operation`、`agent`。更多能力通过插件扩展。
 
-### web_search 使用 Tavily 提示缺少 API Key
+### web_search 未设置 Tavily API Key
 
-当 `provider=tavily` 时必须设置：
+未设置 `TAVILY_API_KEY` 时，`web_search` 会自动使用 DuckDuckGo HTML 搜索；不需要配置 key。需要使用 Tavily 时再设置：
 
 ```sh
 export TAVILY_API_KEY='your-tavily-key'
 ```
 
-默认 `provider=auto` 会在未配置 Key 时使用 DuckDuckGo HTML 搜索。
+`provider=auto` 优先使用 Tavily；未配置 key 时使用 DuckDuckGo。显式传入 `provider=tavily` 但未配置 key 时，也会回退到 DuckDuckGo。
 
 ### file_operation 写入失败
 

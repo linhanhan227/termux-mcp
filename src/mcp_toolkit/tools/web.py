@@ -61,18 +61,16 @@ def register_web_search_tool(registry: ToolRegistry, settings: Settings) -> None
         ] = 5,
         provider: Annotated[
             Provider,
-            Field(title="搜索提供方", description="auto 优先使用 Tavily API Key，否则使用 DuckDuckGo HTML 搜索。"),
+            Field(title="搜索提供方", description="auto 优先使用 Tavily；未配置 Tavily Key 时使用 DuckDuckGo HTML 搜索。"),
         ] = "auto",
     ) -> dict[str, object]:
         """联网搜索公开网页，返回标题、URL 和摘要。"""
         limit = max(1, min(max_results, 10))
         selected_provider = provider
-        if selected_provider == "auto":
+        if selected_provider == "auto" or (selected_provider == "tavily" and not settings.tavily_api_key):
             selected_provider = "tavily" if settings.tavily_api_key else "duckduckgo"
 
         if selected_provider == "tavily":
-            if not settings.tavily_api_key:
-                raise PermissionError("web_search 使用 Tavily 时需要设置 TAVILY_API_KEY")
             payload = {
                 "query": query,
                 "max_results": limit,
